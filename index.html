@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Analyzer</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body class="bg-black text-white min-h-screen p-8" x-data="resumeAnalyzer">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8">Job Description</h1>
+        
+        <div class="mb-8">
+            <textarea 
+                x-model="jobDescription"
+                class="w-full p-4 rounded-lg bg-gray-900 text-white border border-gray-700 min-h-[100px]"
+                placeholder="Enter the job description here"></textarea>
+        </div>
+
+        <h2 class="text-4xl font-bold mb-4">Upload Resumes</h2>
+        
+        <div class="flex gap-4 mb-8">
+            <label class="flex-1">
+                <input 
+                    type="file" 
+                    @change="handleFileUpload($event)"
+                    accept=".pdf,.doc,.docx,.txt"
+                    class="hidden"
+                    multiple>
+                <div class="cursor-pointer bg-gray-900 p-4 rounded-lg border border-gray-700">
+                    <span x-text="fileLabel">Choose Files - No file chosen</span>
+                </div>
+            </label>
+
+            <button 
+                @click="analyzeResumes"
+                :disabled="!canSubmit"
+                class="bg-blue-600 px-8 py-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                Submit
+            </button>
+
+            <div class="relative">
+                <button 
+                    @click="showFilters = !showFilters"
+                    class="bg-gray-900 px-8 py-4 rounded-lg hover:bg-gray-800">
+                    Education <i class="bi bi-chevron-down"></i>
+                </button>
+                <div 
+                    x-show="showFilters"
+                    @click.away="showFilters = false"
+                    class="absolute right-0 mt-2 w-48 bg-gray-900 rounded-lg shadow-lg">
+                    <div class="p-2">
+                        <label class="block p-2">
+                            <input type="checkbox" class="mr-2"> Ph.D
+                        </label>
+                        <label class="block p-2">
+                            <input type="checkbox" class="mr-2"> Masters
+                        </label>
+                        <label class="block p-2">
+                            <input type="checkbox" class="mr-2"> Bachelors
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div x-show="loading" class="text-center my-8">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+            <p class="mt-2">Analyzing resumes...</p>
+        </div>
+
+        <!-- Results Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full mb-8">
+                <thead>
+                    <tr class="border-b border-gray-700">
+                        <th class="text-left p-4">Resume</th>
+                        <th class="text-left p-4">Rank</th>
+                        <th class="text-left p-4">Education</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="result in results" :key="result.name">
+                        <tr class="border-b border-gray-700 hover:bg-gray-900">
+                            <td class="p-4" x-text="result.name"></td>
+                            <td class="p-4">
+                                <span 
+                                    x-text="result.rank + '%'"
+                                    :class="{
+                                        'text-green-400': result.rank >= 80,
+                                        'text-blue-400': result.rank >= 70 && result.rank < 80,
+                                        'text-yellow-400': result.rank >= 60 && result.rank < 70,
+                                        'text-red-400': result.rank < 60
+                                    }">
+                                </span>
+                            </td>
+                            <td class="p-4" x-text="result.education"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Detailed Analysis Modal -->
+        <div 
+            x-show="selectedAnalysis"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-gray-900 rounded-lg p-6 max-w-2xl w-full">
+                <h3 class="text-2xl font-bold mb-4" x-text="selectedAnalysis?.name"></h3>
+                <div class="space-y-4">
+                    <p><strong>Key Skills:</strong> <span x-text="selectedAnalysis?.skills"></span></p>
+                    <p><strong>Education:</strong> <span x-text="selectedAnalysis?.education"></span></p>
+                    <p><strong>Experience:</strong> <span x-text="selectedAnalysis?.experience"></span></p>
+                    <p><strong>AI Summary:</strong> <span x-text="selectedAnalysis?.summary"></span></p>
+                </div>
+                <button 
+                    @click="selectedAnalysis = null"
+                    class="mt-6 bg-blue-600 px-4 py-2 rounded">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('resumeAnalyzer', () => ({
+                jobDescription: '',
+                files: [],
+                fileLabel: 'Choose Files - No file chosen',
+                loading: false,
+                showFilters: false,
+                selectedAnalysis: null,
+                results: [
+                    { name: 'Alice Johnson', rank: 82, education: 'M.S. in Computer Science' },
+                    { name: 'Bob Smith', rank: 75, education: 'B.S. in Information Systems' },
+                    { name: 'Charlie Davis', rank: 64, education: 'B.A. Communications' },
+                    { name: 'Diane Lee', rank: 58, education: 'B.S. Electrical Engineering' }
+                ],
+
+                get canSubmit() {
+                    return this.jobDescription.trim() && this.files.length > 0;
+                },
+
+                handleFileUpload(event) {
+                    this.files = event.target.files;
+                    this.fileLabel = this.files.length > 0 
+                        ? `${this.files.length} file(s) selected`
+                        : 'Choose Files - No file chosen';
+                },
+
+                async analyzeResumes() {
+                    if (!this.canSubmit) return;
+
+                    this.loading = true;
+                    const apiKey = 'AIzaSyBkjGorMt4B9FUYjngB32M-LCQL_acEzMM';
+                    const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+
+                    try {
+                        for (let file of this.files) {
+                            const reader = new FileReader();
+                            reader.onload = async (e) => {
+                                const resumeText = e.target.result;
+                                const response = await fetch(`${apiUrl}?key=${apiKey}`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        contents: [{
+                                            parts: [{
+                                                text: `Compare this resume to the job description below:\n\nResume:\n${resumeText}\n\nJob Description:\n${this.jobDescription}\n\nExtract and return:\n1. Match Score (0-100%)\n2. Key Skills\n3. Education Summary\n4. Work Experience Summary\n5. Role Titles\n6. Gemini Summary of the Resume`
+                                            }]
+                                        }]
+                                    })
+                                });
+
+                                if (!response.ok) {
+                                    throw new Error('API request failed');
+                                }
+
+                                const data = await response.json();
+                                // Process the analysis results and update the UI
+                                this.updateResults(file.name, data);
+                            };
+                            reader.readAsText(file);
+                        }
+                    } catch (error) {
+                        console.error('Error analyzing resumes:', error);
+                        alert('An error occurred while analyzing the resumes. Please try again.');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                updateResults(fileName, analysisData) {
+                    // Process the analysis data and update the results array
+                    // This is a simplified example - you would need to parse the actual API response
+                    const newResult = {
+                        name: fileName,
+                        rank: Math.floor(Math.random() * 30) + 70, // Example score
+                        education: 'Parsed from analysis',
+                        skills: 'Parsed skills',
+                        experience: 'Parsed experience',
+                        summary: 'AI generated summary'
+                    };
+                    this.results = [...this.results, newResult];
+                }
+            }));
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
